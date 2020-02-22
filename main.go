@@ -11,15 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 	"txn-store/src/txnStore"
-	"txn-store/src/txnStore/sqlTxnStore"
 )
 
 const (
 	NUMBER_IN_TXN = 10
 )
 
-var txnCount = int32(0)
-var failedTxnCount = int32(0)
+var successTxnCount int32 = 0
+var failedTxnCount int32 = 0
 
 func main() {
 	log.Printf("Start test now.")
@@ -30,17 +29,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	myStores := []txnStore.TxnStore{
-		txnStore.NewMyTxnStore(),
-	}
-
-	if mysqlStore, err := sqlTxnStore.NewMysqlTxnStore(); err == nil {
-		myStores = append(myStores, mysqlStore)
-	} else {
-		log.Printf("Got error while init mysqlStore, err: %s\n", err)
-	}
-
-	myStore := myStores[0]
+	myStore := txnStore.NewMyTxnStore()
 
 	keyChanel := randKeyChannel()
 
@@ -91,8 +80,8 @@ func checkStore(mystore txnStore.TxnStore, runningSeconds int) {
 		}
 	}
 
-	fmt.Printf("sucess txn count: %d, failed count: %d\n", txnCount, failedTxnCount)
-	fmt.Printf("txn success QPS: %f, sum: %d, non zero count: %d\n", float64(txnCount)/float64(runningSeconds), sum, nonZeroCount)
+	fmt.Printf("sucess txn count: %d, failed count: %d\n", successTxnCount, failedTxnCount)
+	fmt.Printf("txn success QPS: %f, sum: %d, non zero count: %d\n", float64(successTxnCount)/float64(runningSeconds), sum, nonZeroCount)
 }
 
 func doTransactions(ctx context.Context, wg *sync.WaitGroup, myStore txnStore.TxnStore, keyChanel <-chan []int) {
@@ -173,7 +162,7 @@ func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
 
 	err = myStore.Commit(tx)
 	if err == nil {
-		atomic.AddInt32(&txnCount, 1)
+		atomic.AddInt32(&successTxnCount, 1)
 	} else {
 		atomic.AddInt32(&failedTxnCount, 1)
 	}
