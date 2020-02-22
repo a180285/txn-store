@@ -4,7 +4,6 @@ import (
 	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 )
 
 type OperationType int
@@ -29,7 +28,7 @@ type KvValue struct {
 type MyTxnStore struct {
 	nextTxnId *int64
 
-	kvStore []unsafe.Pointer
+	kvStore []*KvValue
 	kvMutex sync.Mutex
 
 	txnOperations sync.Map
@@ -45,9 +44,9 @@ func NewMyTxnStore() *MyTxnStore {
 	}
 
 	keysCount := 1000
-	txnStore.kvStore = make([]unsafe.Pointer, 1000)
+	txnStore.kvStore = make([]*KvValue, 1000)
 	for i := 0; i < keysCount; i++ {
-		atomic.StorePointer(&txnStore.kvStore[i], unsafe.Pointer(&KvValue{}))
+		txnStore.kvStore[i] = &KvValue{}
 	}
 
 	return txnStore
@@ -56,7 +55,7 @@ func NewMyTxnStore() *MyTxnStore {
 func (txnStore *MyTxnStore) GET(tx interface{}, key int) (value int, err error) {
 	txnId := tx.(int64)
 
-	kvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[key]))
+	kvValue := txnStore.kvStore[key]
 
 	ops := txnStore.getOperationByTxnId(txnId)
 	ops = append(ops, KvOperation{
@@ -104,7 +103,7 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 	defer txnStore.kvMutex.Unlock()
 
 	for _, operation := range txnOperations {
-		oldKvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[operation.key]))
+		oldKvValue := txnStore.kvStore[operation.key]
 
 		if operation.opType == OP_GET && operation.valueVersion != oldKvValue.version {
 			return errors.Errorf("Data has been modified, transaction [%d] cann't be commited.", txnId)
@@ -113,13 +112,13 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 
 	for _, operation := range txnOperations {
 		if operation.opType == OP_PUT {
-			oldKvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[operation.key]))
+			oldKvValue := txnStore.kvStore[operation.key]
 
 			newValue := &KvValue{
 				value:   operation.value,
 				version: oldKvValue.version + 1,
 			}
-			atomic.StorePointer(&txnStore.kvStore[operation.key], unsafe.Pointer(newValue))
+			txnStore.kvStore[operation.key] = newValue
 		}
 	}
 

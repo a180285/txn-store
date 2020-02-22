@@ -17,37 +17,28 @@ const (
 
 var successTxnCount int32 = 0
 var failedTxnCount int32 = 0
+var transactionTime float64 = 0
 
 func main() {
+	rand.Seed(time.Now().Unix())
+
 	log.Printf("Start test now.")
-	numThreads := 10000
+
+	numThreads := 5500
 	runningSeconds := 15
 
-	var wg sync.WaitGroup
-
-	ctx, cancel := context.WithCancel(context.Background())
-
+	// Chanel to generate different keys
+	keyChanel := randKeyChannel()
 	myStore := txnStore.NewMyTxnStore()
 
-	keyChanel := randKeyChannel()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
 	for i := 0; i < numThreads; i++ {
 		wg.Add(1)
 		go doTransactions(ctx, &wg, myStore, keyChanel)
 	}
 
-	//cpuprofile := "cpu.prof"
-	//f, err := os.Create(cpuprofile)
-	//if err != nil {
-	//	log.Fatal("could not create CPU profile: ", err)
-	//}
-	//if err := pprof.StartCPUProfile(f); err != nil {
-	//	log.Fatal("could not start CPU profile: ", err)
-	//}
-
 	time.Sleep(time.Duration(runningSeconds) * time.Second)
-
-	//pprof.StopCPUProfile()
 
 	cancel()
 	wg.Wait()
@@ -78,8 +69,9 @@ func checkStore(mystore txnStore.TxnStore, runningSeconds int) {
 		}
 	}
 
-	fmt.Printf("sucess txn count: %d, failed count: %d\n", successTxnCount, failedTxnCount)
+	fmt.Printf("sucess txn count: %d, failed count: %d, success rate: %f\n", successTxnCount, failedTxnCount, float64(successTxnCount)/float64(successTxnCount+failedTxnCount)*100)
 	fmt.Printf("txn success QPS: %f, sum: %d, non zero count: %d\n", float64(successTxnCount)/float64(runningSeconds), sum, nonZeroCount)
+	fmt.Printf("equal txn success QPS: %f, sum: %d, non zero count: %d\n", float64(successTxnCount)/float64(runningSeconds)*transactionTime/float64(successTxnCount+failedTxnCount)/0.1, sum, nonZeroCount)
 }
 
 func doTransactions(ctx context.Context, wg *sync.WaitGroup, myStore txnStore.TxnStore, keyChanel <-chan []int) {
@@ -130,6 +122,12 @@ func randKeys(length int) []int {
 }
 
 func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		transactionTime += end.Sub(start).Seconds()
+	}()
+
 	tx, err := myStore.Begin()
 	if err != nil {
 		return err

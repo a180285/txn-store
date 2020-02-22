@@ -1,11 +1,35 @@
 # txn-store
 
+## 测试
+
+环境:
+```
+MacOS: 10.15.2 (19C57)
+Processor Name:	Dual-Core Intel Core i7
+Processor Speed: 1.7 GHz
+  
+go version go1.12.13 darwin/amd64
+```
+
+测试命令:
+```bash
+go run main.go
+```
+
+输出：
+```bash
+2020/02/22 17:38:10 Start test now.
+sucess txn count: 5563, failed count: 780797, success rate: 0.707437
+txn success QPS: 370.866667, sum: 0, non zero count: 943
+equal txn success QPS: 405.354056, sum: 0, non zero count: 943
+```
+
+
 sync.Map
 
 ```bash
 sucess txn count: 5573, failed count: 701111
 txn success QPS: 371.533333, sum: 0, non zero count: 941
-
 ```
 
 

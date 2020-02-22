@@ -5,11 +5,10 @@ const MAX_KEYS = 1000
 type TxnStore interface {
 	Name() string
 
+	// Start a transaction, and pass the return value to following methods.
 	Begin() (tx interface{}, err error)
 
-	Commit(tx interface{}) error
-
 	GET(tx interface{}, key int) (value int, err error)
-
 	PUT(tx interface{}, key, value int) error
+	Commit(tx interface{}) error
 }
