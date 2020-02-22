@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 type OperationType int
@@ -28,7 +29,7 @@ type KvValue struct {
 type MyTxnStore struct {
 	nextTxnId *int64
 
-	kvStore sync.Map
+	kvStore []unsafe.Pointer
 	kvMutex sync.Mutex
 
 	txnOperations sync.Map
@@ -43,8 +44,10 @@ func NewMyTxnStore() *MyTxnStore {
 		nextTxnId: new(int64),
 	}
 
-	for i := 0; i < 1000; i++ {
-		txnStore.kvStore.Store(i, KvValue{})
+	keysCount := 1000
+	txnStore.kvStore = make([]unsafe.Pointer, 1000)
+	for i := 0; i < keysCount; i++ {
+		atomic.StorePointer(&txnStore.kvStore[i], unsafe.Pointer(&KvValue{}))
 	}
 
 	return txnStore
@@ -53,12 +56,7 @@ func NewMyTxnStore() *MyTxnStore {
 func (txnStore *MyTxnStore) GET(tx interface{}, key int) (value int, err error) {
 	txnId := tx.(int64)
 
-	kvValueIntface, ok := txnStore.kvStore.Load(key)
-	if !ok {
-		return 0, errors.Errorf("Can't load key: %d\n", key)
-	}
-
-	kvValue := kvValueIntface.(KvValue)
+	kvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[key]))
 
 	ops := txnStore.getOperationByTxnId(txnId)
 	ops = append(ops, KvOperation{
@@ -106,29 +104,22 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 	defer txnStore.kvMutex.Unlock()
 
 	for _, operation := range txnOperations {
-		kvValueIntface, ok := txnStore.kvStore.Load(operation.key)
-		if !ok {
-			return errors.Errorf("Can't load key: %d\n", operation.key)
-		}
-		kvValue := kvValueIntface.(KvValue)
+		oldKvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[operation.key]))
 
-		if operation.opType == OP_GET && operation.valueVersion != kvValue.version {
+		if operation.opType == OP_GET && operation.valueVersion != oldKvValue.version {
 			return errors.Errorf("Data has been modified, transaction [%d] cann't be commited.", txnId)
 		}
 	}
 
 	for _, operation := range txnOperations {
 		if operation.opType == OP_PUT {
-			kvValueIntface, ok := txnStore.kvStore.Load(operation.key)
-			if !ok {
-				return errors.Errorf("Can't load key: %d\n", operation.key)
+			oldKvValue := (*KvValue)(atomic.LoadPointer(&txnStore.kvStore[operation.key]))
+
+			newValue := &KvValue{
+				value:   operation.value,
+				version: oldKvValue.version + 1,
 			}
-
-			kvValue := kvValueIntface.(KvValue)
-			kvValue.value = operation.value
-			kvValue.version++
-
-			txnStore.kvStore.Store(operation.key, kvValue)
+			atomic.StorePointer(&txnStore.kvStore[operation.key], unsafe.Pointer(newValue))
 		}
 	}
 

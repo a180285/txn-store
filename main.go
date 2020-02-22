@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
-	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,7 +20,7 @@ var failedTxnCount int32 = 0
 
 func main() {
 	log.Printf("Start test now.")
-	numThreads := 5000
+	numThreads := 10000
 	runningSeconds := 15
 
 	var wg sync.WaitGroup
@@ -38,18 +36,18 @@ func main() {
 		go doTransactions(ctx, &wg, myStore, keyChanel)
 	}
 
-	cpuprofile := "cpu.prof"
-	f, err := os.Create(cpuprofile)
-	if err != nil {
-		log.Fatal("could not create CPU profile: ", err)
-	}
-	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Fatal("could not start CPU profile: ", err)
-	}
+	//cpuprofile := "cpu.prof"
+	//f, err := os.Create(cpuprofile)
+	//if err != nil {
+	//	log.Fatal("could not create CPU profile: ", err)
+	//}
+	//if err := pprof.StartCPUProfile(f); err != nil {
+	//	log.Fatal("could not start CPU profile: ", err)
+	//}
 
 	time.Sleep(time.Duration(runningSeconds) * time.Second)
 
-	pprof.StopCPUProfile()
+	//pprof.StopCPUProfile()
 
 	cancel()
 	wg.Wait()
