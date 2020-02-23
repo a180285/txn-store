@@ -70,6 +70,18 @@ go run main.go
 Process finished with exit code 0
 
 
+2020/02/23 15:28:41 Start test now.
+2020/02/23 15:29:02 theads:   10, txn success QPS: 97.500000, total QPS: 213.000000, sum: 0, non zero count: 904
+2020/02/23 15:29:22 theads:   20, txn success QPS: 194.100000, total QPS: 964.400000, sum: 0, non zero count: 932
+2020/02/23 15:29:42 theads:   30, txn success QPS: 292.500000, total QPS: 3645.450000, sum: 0, non zero count: 946
+2020/02/23 15:30:02 theads:   40, txn success QPS: 389.500000, total QPS: 25248.900000, sum: 0, non zero count: 961
+2020/02/23 15:30:22 theads:   50, txn success QPS: 460.100000, total QPS: 216498.150000, sum: 0, non zero count: 975
+2020/02/23 15:30:42 theads:   60, txn success QPS: 468.200000, total QPS: 324622.850000, sum: 0, non zero count: 952
+2020/02/23 15:31:02 theads:   70, txn success QPS: 457.950000, total QPS: 321766.500000, sum: 0, non zero count: 966
+2020/02/23 15:31:22 theads:   80, txn success QPS: 449.250000, total QPS: 320890.700000, sum: 0, non zero count: 955
+2020/02/23 15:31:42 theads:   90, txn success QPS: 441.250000, total QPS: 318163.900000, sum: 0, non zero count: 952
+
+
 ```
 
 

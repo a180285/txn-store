@@ -28,9 +28,7 @@ func main() {
 	keyChanel := randKeyChannel()
 
 	threadCountList := []int{
-		10, 50, 100, 200, 500,
-		1e3, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3,
-		1e4,
+		10, 20, 30, 40, 50, 60, 70, 80, 90,
 	}
 	//threadCountList = []int{5000}
 	for _, numThreads := range threadCountList {
@@ -99,10 +97,8 @@ func doTransactions(ctx context.Context, wg *sync.WaitGroup, myStore txnStore.Tx
 		case <-ctx.Done():
 			return
 		default:
-			err := _doTransactions(myStore, nextKeys)
-			if err == nil { // only try new keys when success
-				nextKeys = <-keyChanel
-			}
+			_doTransactions(myStore, nextKeys)
+			nextKeys = <-keyChanel
 		}
 	}
 }
@@ -147,6 +143,8 @@ func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
 	for i := 0; i < NUMBER_IN_TXN; i++ {
 		values[i], err = myStore.GET(tx, keys[i])
 		if err != nil {
+			myStore.Rollback(tx)
+			atomic.AddInt32(&failedTxnCount, 1)
 			return err
 		}
 	}
@@ -162,6 +160,7 @@ func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
 		}
 		err = myStore.PUT(tx, keys[i], newValue)
 		if err != nil {
+			myStore.Rollback(tx)
 			return err
 		}
 	}

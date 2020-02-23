@@ -11,4 +11,5 @@ type TxnStore interface {
 	GET(tx interface{}, key int) (value int, err error)
 	PUT(tx interface{}, key, value int) error
 	Commit(tx interface{}) error
+	Rollback(tx interface{}) error
 }
