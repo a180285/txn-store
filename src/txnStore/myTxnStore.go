@@ -1,6 +1,7 @@
 package txnStore
 
 import (
+	"github.com/LK4D4/trylock"
 	"github.com/pkg/errors"
 	"sync"
 	"sync/atomic"
@@ -23,13 +24,13 @@ type KvOperation struct {
 type KvValue struct {
 	value   int
 	version int
+	mutex   *trylock.Mutex
 }
 
 type MyTxnStore struct {
 	nextTxnId *int64
 
 	kvStore sync.Map
-	kvMutex sync.Mutex
 
 	txnOperations sync.Map
 }
@@ -45,7 +46,11 @@ func NewMyTxnStore() *MyTxnStore {
 
 	keysCount := 1000
 	for i := 0; i < keysCount; i++ {
-		txnStore.kvStore.Store(i, KvValue{})
+		txnStore.kvStore.Store(i, KvValue{
+			value:   0,
+			version: 0,
+			mutex:   &trylock.Mutex{},
+		})
 	}
 
 	return txnStore
@@ -102,36 +107,54 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 	txnOperations := txnStore.getOperationByTxnId(txnId)
 	txnStore.txnOperations.Delete(txnId)
 
-	txnStore.kvMutex.Lock()
-	defer txnStore.kvMutex.Unlock()
-
 	for _, operation := range txnOperations {
+		if operation.opType != OP_GET {
+			continue
+		}
 		rawKvValue, ok := txnStore.kvStore.Load(operation.key)
 		if !ok {
 			return errors.Errorf("Could not get key: %s", operation.key)
 		}
 		oldKvValue := rawKvValue.(KvValue)
 
-		if operation.opType == OP_GET && operation.valueVersion != oldKvValue.version {
+		if operation.valueVersion != oldKvValue.version {
+			return errors.Errorf("Data has been modified, transaction [%d] cann't be commited.", txnId)
+		}
+
+		if !oldKvValue.mutex.TryLock() {
+			return errors.Errorf("Can not get lock")
+		}
+		defer oldKvValue.mutex.Unlock()
+
+		rawKvValue, ok = txnStore.kvStore.Load(operation.key)
+		if !ok {
+			return errors.Errorf("Could not get key: %s", operation.key)
+		}
+		oldKvValue = rawKvValue.(KvValue)
+
+		if operation.valueVersion != oldKvValue.version {
 			return errors.Errorf("Data has been modified, transaction [%d] cann't be commited.", txnId)
 		}
 	}
 
 	for _, operation := range txnOperations {
 		// TODO: Need rollback changed value when do operations failed.
-		if operation.opType == OP_PUT {
-			rawKvValue, ok := txnStore.kvStore.Load(operation.key)
-			if !ok {
-				return errors.Errorf("Could not get key: %s", operation.key)
-			}
-			oldKvValue := rawKvValue.(KvValue)
-
-			newValue := KvValue{
-				value:   operation.value,
-				version: oldKvValue.version + 1,
-			}
-			txnStore.kvStore.Store(operation.key, newValue)
+		if operation.opType != OP_PUT {
+			continue
 		}
+
+		rawKvValue, ok := txnStore.kvStore.Load(operation.key)
+		if !ok {
+			return errors.Errorf("Could not get key: %s", operation.key)
+		}
+		oldKvValue := rawKvValue.(KvValue)
+
+		newValue := KvValue{
+			value:   operation.value,
+			version: oldKvValue.version + 1,
+			mutex:   oldKvValue.mutex,
+		}
+		txnStore.kvStore.Store(operation.key, newValue)
 	}
 
 	return nil
