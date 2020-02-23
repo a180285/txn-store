@@ -118,6 +118,7 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 	}
 
 	for _, operation := range txnOperations {
+		// TODO: Need rollback changed value when do operations failed.
 		if operation.opType == OP_PUT {
 			rawKvValue, ok := txnStore.kvStore.Load(operation.key)
 			if !ok {
