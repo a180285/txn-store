@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math/rand"
 	"sync"
@@ -17,18 +16,32 @@ const (
 
 var successTxnCount int32 = 0
 var failedTxnCount int32 = 0
-var transactionTime float64 = 0
 
 func main() {
 	rand.Seed(time.Now().Unix())
 
 	log.Printf("Start test now.")
 
-	numThreads := 5500
-	runningSeconds := 15
+	runningSeconds := 20
 
 	// Chanel to generate different keys
 	keyChanel := randKeyChannel()
+
+	threadCountList := []int{
+		10, 50, 100, 200, 500,
+		1e3, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3,
+		1e4,
+	}
+	//threadCountList = []int{5000}
+	for _, numThreads := range threadCountList {
+		doOneTest(numThreads, runningSeconds, keyChanel)
+	}
+}
+
+func doOneTest(numThreads int, runningSeconds int, keyChanel <-chan []int) {
+	successTxnCount = 0
+	failedTxnCount = 0
+
 	myStore := txnStore.NewMyTxnStore()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -43,10 +56,10 @@ func main() {
 	cancel()
 	wg.Wait()
 
-	checkStore(myStore, runningSeconds)
+	report(myStore, runningSeconds, numThreads)
 }
 
-func checkStore(mystore txnStore.TxnStore, runningSeconds int) {
+func report(mystore txnStore.TxnStore, runningSeconds int, numThreads int) {
 	tx, err := mystore.Begin()
 	if err != nil {
 		println(err)
@@ -69,9 +82,12 @@ func checkStore(mystore txnStore.TxnStore, runningSeconds int) {
 		}
 	}
 
-	fmt.Printf("sucess txn count: %d, failed count: %d, success rate: %f\n", successTxnCount, failedTxnCount, float64(successTxnCount)/float64(successTxnCount+failedTxnCount)*100)
-	fmt.Printf("txn success QPS: %f, sum: %d, non zero count: %d\n", float64(successTxnCount)/float64(runningSeconds), sum, nonZeroCount)
-	fmt.Printf("equal txn success QPS: %f, sum: %d, non zero count: %d\n", float64(successTxnCount)/float64(runningSeconds)*transactionTime/float64(successTxnCount+failedTxnCount)/0.1, sum, nonZeroCount)
+	log.Printf("theads: %4d, txn success QPS: %f, total QPS: %f, sum: %d, non zero count: %d\n",
+		numThreads,
+		float64(successTxnCount)/float64(runningSeconds),
+		float64(successTxnCount+failedTxnCount)/float64(runningSeconds),
+		sum,
+		nonZeroCount)
 }
 
 func doTransactions(ctx context.Context, wg *sync.WaitGroup, myStore txnStore.TxnStore, keyChanel <-chan []int) {
@@ -122,12 +138,6 @@ func randKeys(length int) []int {
 }
 
 func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
-	start := time.Now()
-	defer func() {
-		end := time.Now()
-		transactionTime += end.Sub(start).Seconds()
-	}()
-
 	tx, err := myStore.Begin()
 	if err != nil {
 		return err

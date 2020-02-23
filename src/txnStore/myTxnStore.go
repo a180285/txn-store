@@ -28,7 +28,7 @@ type KvValue struct {
 type MyTxnStore struct {
 	nextTxnId *int64
 
-	kvStore []*KvValue
+	kvStore sync.Map
 	kvMutex sync.Mutex
 
 	txnOperations sync.Map
@@ -44,9 +44,8 @@ func NewMyTxnStore() *MyTxnStore {
 	}
 
 	keysCount := 1000
-	txnStore.kvStore = make([]*KvValue, 1000)
 	for i := 0; i < keysCount; i++ {
-		txnStore.kvStore[i] = &KvValue{}
+		txnStore.kvStore.Store(i, KvValue{})
 	}
 
 	return txnStore
@@ -55,7 +54,11 @@ func NewMyTxnStore() *MyTxnStore {
 func (txnStore *MyTxnStore) GET(tx interface{}, key int) (value int, err error) {
 	txnId := tx.(int64)
 
-	kvValue := txnStore.kvStore[key]
+	rawKvValue, ok := txnStore.kvStore.Load(key)
+	if !ok {
+		return 0, errors.Errorf("Could not get key: %s", key)
+	}
+	kvValue := rawKvValue.(KvValue)
 
 	ops := txnStore.getOperationByTxnId(txnId)
 	ops = append(ops, KvOperation{
@@ -103,7 +106,11 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 	defer txnStore.kvMutex.Unlock()
 
 	for _, operation := range txnOperations {
-		oldKvValue := txnStore.kvStore[operation.key]
+		rawKvValue, ok := txnStore.kvStore.Load(operation.key)
+		if !ok {
+			return errors.Errorf("Could not get key: %s", operation.key)
+		}
+		oldKvValue := rawKvValue.(KvValue)
 
 		if operation.opType == OP_GET && operation.valueVersion != oldKvValue.version {
 			return errors.Errorf("Data has been modified, transaction [%d] cann't be commited.", txnId)
@@ -112,13 +119,17 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 
 	for _, operation := range txnOperations {
 		if operation.opType == OP_PUT {
-			oldKvValue := txnStore.kvStore[operation.key]
+			rawKvValue, ok := txnStore.kvStore.Load(operation.key)
+			if !ok {
+				return errors.Errorf("Could not get key: %s", operation.key)
+			}
+			oldKvValue := rawKvValue.(KvValue)
 
-			newValue := &KvValue{
+			newValue := KvValue{
 				value:   operation.value,
 				version: oldKvValue.version + 1,
 			}
-			txnStore.kvStore[operation.key] = newValue
+			txnStore.kvStore.Store(operation.key, newValue)
 		}
 	}
 
