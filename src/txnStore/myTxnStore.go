@@ -126,6 +126,7 @@ func (txnStore *MyTxnStore) Commit(tx interface{}) error {
 		}
 		defer oldKvValue.mutex.Unlock()
 
+		// double check
 		rawKvValue, ok = txnStore.kvStore.Load(operation.key)
 		if !ok {
 			return errors.Errorf("Could not get key: %s", operation.key)
