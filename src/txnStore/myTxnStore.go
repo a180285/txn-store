@@ -40,20 +40,19 @@ func (txnStore *MyTxnStore) Name() string {
 }
 
 func NewMyTxnStore() *MyTxnStore {
-	txnStore := &MyTxnStore{
+	myStore := &MyTxnStore{
 		nextTxnId: new(int64),
 	}
 
-	keysCount := 1000
-	for i := 0; i < keysCount; i++ {
-		txnStore.kvStore.Store(i, KvValue{
+	for i := 0; i < MAX_KEYS; i++ {
+		myStore.kvStore.Store(i, KvValue{
 			value:   0,
 			version: 0,
 			mutex:   &trylock.Mutex{},
 		})
 	}
 
-	return txnStore
+	return myStore
 }
 
 func (txnStore *MyTxnStore) GET(tx interface{}, key int) (value int, err error) {
@@ -78,6 +77,7 @@ func (txnStore *MyTxnStore) GET(tx interface{}, key int) (value int, err error) 
 	return kvValue.value, nil
 }
 
+// TODO: Make this method thread safe
 func (txnStore *MyTxnStore) PUT(tx interface{}, key, value int) error {
 	txnId := tx.(int64)
 

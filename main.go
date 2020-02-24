@@ -32,7 +32,6 @@ func main() {
 		1e3, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3,
 		1e4,
 	}
-	//threadCountList = []int{5000}
 	for _, numThreads := range threadCountList {
 		doOneTest(numThreads, runningSeconds, keyChanel)
 	}
@@ -99,7 +98,7 @@ func doTransactions(ctx context.Context, wg *sync.WaitGroup, myStore txnStore.Tx
 		case <-ctx.Done():
 			return
 		default:
-			err := _doTransactions(myStore, nextKeys)
+			err := _doTransaction(myStore, nextKeys)
 			if err == nil { // only try new keys when success
 				nextKeys = <-keyChanel
 			}
@@ -137,7 +136,7 @@ func randKeys(length int) []int {
 	return keys
 }
 
-func _doTransactions(myStore txnStore.TxnStore, keys []int) error {
+func _doTransaction(myStore txnStore.TxnStore, keys []int) error {
 	tx, err := myStore.Begin()
 	if err != nil {
 		return err
